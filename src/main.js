@@ -21,6 +21,7 @@ const state = {
 };
 
 const appContainer = document.getElementById('app');
+const modalRoot = document.getElementById('modal-root');
 
 // Toast helper
 function showToast(message) {
@@ -39,13 +40,21 @@ function showToast(message) {
   }, 2200);
 }
 
+// Modal helper: cleanly close and remove modal DOM
+function closeModal() {
+  state.modal = null;
+  if (modalRoot) {
+    modalRoot.innerHTML = '';
+  }
+}
+
 // Navigation
 function navigateTo(view, bookId = null) {
   state.currentView = view;
   if (bookId) {
     state.selectedBookId = bookId;
   }
-  state.modal = null;
+  closeModal();
   render();
   window.scrollTo(0, 0);
 }
@@ -53,6 +62,9 @@ function navigateTo(view, bookId = null) {
 // Main Render Dispatcher
 function render() {
   appContainer.innerHTML = '';
+  if (modalRoot) {
+    modalRoot.innerHTML = '';
+  }
 
   if (state.currentView === 'home') {
     renderHome();
@@ -83,55 +95,46 @@ function renderHome() {
       <span class="search-icon">🔍</span>
       <input type="text"
              class="search-input"
+             id="search-input-field"
              placeholder="책 제목이나 작가를 검색해보세요"
-             value="${state.searchQuery}" />
-      ${state.searchQuery ? '<button class="search-clear-btn" id="search-clear-btn" aria-label="검색어 지우기">✕</button>' : ''}
+             value="${escapeHtml(state.searchQuery)}" />
+      <button class="search-clear-btn" id="search-clear-btn" aria-label="검색어 지우기" style="display: ${state.searchQuery ? 'flex' : 'none'};">✕</button>
     </div>
   `;
-
-  const searchInput = searchContainer.querySelector('.search-input');
-  searchInput.addEventListener('input', (e) => {
-    state.searchQuery = e.target.value;
-    state.currentPage = 1;
-    render();
-  });
-
-  const clearBtn = searchContainer.querySelector('#search-clear-btn');
-  if (clearBtn) {
-    clearBtn.addEventListener('click', () => {
-      state.searchQuery = '';
-      state.currentPage = 1;
-      render();
-    });
-  }
-
   homeView.appendChild(searchContainer);
 
   // 3-2 & 3-3 Recent Books Grid (2 cols x 3 rows = 6 items per page)
-  const allBooks = getBooks();
-  const q = state.searchQuery.trim().toLowerCase();
-  const filteredBooks = q
-    ? allBooks.filter(b => b.title.toLowerCase().includes(q) || b.author.toLowerCase().includes(q))
-    : allBooks;
-
-  const totalPages = Math.ceil(filteredBooks.length / state.pageSize) || 1;
-  if (state.currentPage > totalPages) state.currentPage = totalPages;
-
-  const startIndex = (state.currentPage - 1) * state.pageSize;
-  const currentBooks = filteredBooks.slice(startIndex, startIndex + state.pageSize);
-
   const gridWrapper = document.createElement('div');
   gridWrapper.className = 'books-grid-wrapper';
+  homeView.appendChild(gridWrapper);
 
-  if (filteredBooks.length === 0) {
-    gridWrapper.innerHTML = `
-      <div class="empty-state">
-        <div class="empty-state-icon">📖</div>
-        <div class="empty-state-text">${q ? '일치하는 독서 기록이 없습니다.' : '아직 작성된 독서록이 없습니다.'}</div>
-        <div class="empty-state-sub">${q ? '책 제목이나 작가 이름을 다시 확인해보세요.' : '아래 기록 버튼을 눌러 첫 독후감을 남겨보세요.'}</div>
-      </div>
-    `;
-  } else {
+  // Isolated grid update function: never destroys search input DOM or dismisses keyboard!
+  const updateHomeGrid = () => {
+    const allBooks = getBooks();
+    const q = state.searchQuery.trim().toLowerCase();
+    const filteredBooks = q
+      ? allBooks.filter(b => b.title.toLowerCase().includes(q) || b.author.toLowerCase().includes(q))
+      : allBooks;
+
+    const totalPages = Math.ceil(filteredBooks.length / state.pageSize) || 1;
+    if (state.currentPage > totalPages) state.currentPage = totalPages;
+
+    const startIndex = (state.currentPage - 1) * state.pageSize;
+    const currentBooks = filteredBooks.slice(startIndex, startIndex + state.pageSize);
+
+    gridWrapper.innerHTML = '';
+
+    if (filteredBooks.length === 0) {
+      gridWrapper.innerHTML = `
+        <div class="empty-state">
+          <div class="empty-state-icon">📖</div>
+          <div class="empty-state-text">${q ? '일치하는 독서 기록이 없습니다.' : '아직 작성된 독서록이 없습니다.'}</div>
+          <div class="empty-state-sub">${q ? '책 제목이나 작가 이름을 다시 확인해보세요.' : '아래 기록 버튼을 눌러 첫 독후감을 남겨보세요.'}</div>
+        </div>
+      `;
+      return;
+    }
+
     const grid = document.createElement('div');
     grid.className = 'books-grid';
 
@@ -163,22 +166,44 @@ function renderHome() {
       pagination.querySelector('#prev-page-btn')?.addEventListener('click', () => {
         if (state.currentPage > 1) {
           state.currentPage--;
-          render();
+          updateHomeGrid();
         }
       });
 
       pagination.querySelector('#next-page-btn')?.addEventListener('click', () => {
         if (state.currentPage < totalPages) {
           state.currentPage++;
-          render();
+          updateHomeGrid();
         }
       });
 
       gridWrapper.appendChild(pagination);
     }
-  }
+  };
 
-  homeView.appendChild(gridWrapper);
+  const searchInput = searchContainer.querySelector('#search-input-field');
+  const clearBtn = searchContainer.querySelector('#search-clear-btn');
+
+  // Input event: updates search results and clear button without losing focus or closing keyboard
+  searchInput.addEventListener('input', (e) => {
+    state.searchQuery = e.target.value;
+    state.currentPage = 1;
+    clearBtn.style.display = state.searchQuery ? 'flex' : 'none';
+    updateHomeGrid();
+  });
+
+  // Clear button click: clears input and maintains focus
+  clearBtn.addEventListener('click', () => {
+    state.searchQuery = '';
+    searchInput.value = '';
+    state.currentPage = 1;
+    clearBtn.style.display = 'none';
+    searchInput.focus();
+    updateHomeGrid();
+  });
+
+  // Initial grid population
+  updateHomeGrid();
 
   // 3-4 Bottom Record Button
   const bottomBar = document.createElement('div');
@@ -360,7 +385,7 @@ function renderDetail() {
         isLast: true,
         message: '이 독후감을 삭제할까요?\n삭제한 기록은 복구할 수 없습니다.\n\n(책의 마지막 독후감으로, 책 기록도 함께 삭제됩니다.)'
       };
-      render();
+      renderModal();
     } else {
       // 7-1 독후감이 여러 개인 책: 삭제할 독후감 선택 UI 표시
       state.modal = {
@@ -368,7 +393,7 @@ function renderDetail() {
         bookId: book.id,
         reviews: reviews
       };
-      render();
+      renderModal();
     }
   });
 
@@ -411,6 +436,8 @@ function renderDetail() {
 // 4. DELETE MODALS (7. 독후감 삭제 기능)
 // ==========================================
 function renderModal() {
+  if (!modalRoot) return;
+  modalRoot.innerHTML = '';
   if (!state.modal) return;
 
   const overlay = document.createElement('div');
@@ -454,15 +481,14 @@ function renderModal() {
           reviewNumber: reviewNumber,
           message: `독후감 ${reviewNumber}을(를) 삭제할까요?\n삭제한 기록은 복구할 수 없습니다.`
         };
-        render();
+        renderModal();
       });
 
       selectList.appendChild(item);
     });
 
     content.querySelector('#modal-cancel-btn').addEventListener('click', () => {
-      state.modal = null;
-      render();
+      closeModal();
     });
 
   } else if (state.modal.type === 'confirm_delete') {
@@ -477,13 +503,12 @@ function renderModal() {
     `;
 
     content.querySelector('#modal-cancel-btn').addEventListener('click', () => {
-      state.modal = null;
-      render();
+      closeModal();
     });
 
     content.querySelector('#modal-confirm-delete-btn').addEventListener('click', () => {
       const result = deleteReview(state.modal.reviewId);
-      state.modal = null;
+      closeModal();
 
       if (result.bookDeleted) {
         showToast('책과 독후감이 모두 삭제되었습니다.');
@@ -498,13 +523,12 @@ function renderModal() {
   // Click outside to cancel
   overlay.addEventListener('click', (e) => {
     if (e.target === overlay) {
-      state.modal = null;
-      render();
+      closeModal();
     }
   });
 
   overlay.appendChild(content);
-  document.body.appendChild(overlay);
+  modalRoot.appendChild(overlay);
 }
 
 // Security Helper
