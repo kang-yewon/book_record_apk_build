@@ -1,0 +1,85 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install NPM Dependencies
+        run: npm ci || npm install
+
+      - name: Run Core Verification Tests
+        run: npm test
+
+      - name: Build Web Application
+        run: npm run build
+
+      - name: Setup Java JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'gradle'
+
+      - name: Accept Android SDK Licenses
+        run: |
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses 2>/dev/null || true
+
+      - name: Sync Capacitor Android
+        run: npx cap sync android
+
+      - name: Make Gradle Executable
+        run: chmod +x android/gradlew
+
+      - name: Build Debug APK
+        run: |
+          cd android
+          ./gradlew assembleDebug -PversionCode=${{ github.run_number }} -PversionName="1.0.${{ github.run_number }}" --stacktrace
+
+      - name: Upload Debug APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Book-Record-Debug-APK
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Create GitHub Release with APK
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
+        with:
+          files: android/app/build/outputs/apk/debug/app-debug.apk
+          name: 독서록 APK 빌드 v${{ github.run_number }}
+          tag_name: v1.0.${{ github.run_number }}
+          body: |
+            ## 📖 독서록 (Book Record) Android APK 릴리즈
+
+            - **고정 서명 키 적용**: 이전 앱을 삭제하지 않고도 덮어쓰기 업데이트가 정상 동작합니다.
+            - **버전**: v1.0.${{ github.run_number }} (빌드 번호: ${{ github.run_number }})
+            - **핵심 기능**:
+              - 📖 **중앙 단독 이모지 아이콘 & 아이보리/연분홍 테마**: 시각적으로 편안하고 글쓰기에 집중할 수 있는 깔끔한 디자인
+              - 📚 **책 고유 식별 및 누적 독후감**: (책 제목 + 작가 이름)이 일치할 때만 같은 책으로 취급하여 독후감을 누적하고, 같은 제목이라도 작가가 다르면 독립된 책으로 관리
+              - 🔍 **상단 검색 기능**: 책 제목 또는 작가 이름으로 실시간 검색 및 결과 열람
+              - 🗂️ **2열 × 3행 홈 화면 책 카드**: 최근 새 독후감이 작성된 책 순서로 최대 6개 배치 (페이지네이션 지원)
+              - ✍️ **새 독후감 작성 및 임시 저장**: 제목, 작가, 독서 날짜, 장문 본문 작성 및 자동 임시 저장 지원
+              - ⛔ **유연한 독후감 삭제 및 책 관리**: 여러 독후감 중 선택 삭제 지원 & 마지막 독후감 삭제 시 책 기록 동시 삭제
+              - 💾 **안정적인 로컬 스토리지 데이터 영구 보관**
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

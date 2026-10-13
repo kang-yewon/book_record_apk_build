@@ -1,0 +1,12 @@
+{
+  "appId": "com.kangyewon.bookrecord",
+  "appName": "독서록",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "backgroundColor": "#FAF7F2",
+    "allowMixedContent": true
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "name": "book-record",
+  "version": "1.0.0",
+  "description": "독서록 - 도서 독후감 기록 및 관리 안드로이드 앱",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "node test_scenarios.js"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.2.0",
+    "@capacitor/cli": "^6.2.0",
+    "@capacitor/core": "^6.2.0"
+  },
+  "devDependencies": {
+    "vite": "^6.2.0"
+  }
+}
