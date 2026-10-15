@@ -130,4 +130,17 @@ const rawBooks = localStorage.getItem('book_record_books');
 const rawReviews = localStorage.getItem('book_record_reviews');
 assert(rawBooks !== null && rawReviews !== null, 'localStorage에 데이터가 정상 직렬화되어 보관됨');
 
-console.log('\n🎉 ALL 7 SCENARIOS PASSED PERFECTLY!\n');
+// Test 8: 별점 시스템 (5점 만점)
+console.log('\n[테스트 8] 별점 시스템 (5점 만점)');
+const resRating = saveBookReview({
+  title: '어린왕자',
+  author: '생텍쥐페리',
+  rating: 4,
+  readingDate: '2026-10-15',
+  content: '어른들을 위한 동화'
+});
+assert(resRating.review.rating === 4, '별점 4점이 정상 저장되어야 함');
+const littlePrinceReviews = getReviewsByBookId(resRating.book.id);
+assert(littlePrinceReviews[0].rating === 4, '조회된 독후감 별점이 4점이어야 함');
+
+console.log('\n🎉 ALL SCENARIOS INCL. STAR RATING PASSED PERFECTLY!\n');

@@ -247,6 +247,7 @@ function renderWrite() {
 
   const today = new Date().toISOString().split('T')[0];
   const draft = getDraft() || {};
+  let currentRating = draft.rating ? parseInt(draft.rating, 10) : 5;
 
   if (draft.title || draft.author || draft.content) {
     const draftNotice = document.createElement('div');
@@ -273,6 +274,21 @@ function renderWrite() {
       <input type="text" id="book-author" class="form-input" placeholder="작가 이름을 입력해주세요" value="${escapeHtml(draft.author || '')}" />
     </div>
 
+    <!-- Star Rating System (날짜 칸 위 5개 별점, 5점 만점) -->
+    <div class="form-group">
+      <label class="form-label">별점</label>
+      <div class="star-rating-box">
+        <div class="star-rating-stars" id="star-rating-stars">
+          <button type="button" class="star-btn" data-value="1" aria-label="1점">★</button>
+          <button type="button" class="star-btn" data-value="2" aria-label="2점">★</button>
+          <button type="button" class="star-btn" data-value="3" aria-label="3점">★</button>
+          <button type="button" class="star-btn" data-value="4" aria-label="4점">★</button>
+          <button type="button" class="star-btn" data-value="5" aria-label="5점">★</button>
+        </div>
+        <span class="star-score-badge" id="star-score-badge">5점 / 5점</span>
+      </div>
+    </div>
+
     <div class="form-group">
       <label class="form-label" for="reading-date">독서 날짜</label>
       <input type="date" id="reading-date" class="form-input" value="${draft.readingDate || today}" />
@@ -290,8 +306,33 @@ function renderWrite() {
     const author = form.querySelector('#book-author').value;
     const readingDate = form.querySelector('#reading-date').value;
     const content = form.querySelector('#review-content').value;
-    saveDraft({ title, author, readingDate, content });
+    saveDraft({ title, author, rating: currentRating, readingDate, content });
   };
+
+  // Star Rating Interaction
+  const updateStarDisplay = (val) => {
+    currentRating = val;
+    const starBtns = form.querySelectorAll('.star-btn');
+    starBtns.forEach(btn => {
+      const btnVal = parseInt(btn.dataset.value, 10);
+      btn.classList.toggle('active', btnVal <= val);
+    });
+    const badge = form.querySelector('#star-score-badge');
+    if (badge) {
+      badge.textContent = `${val}점 / 5점`;
+    }
+    updateDraft();
+  };
+
+  form.querySelectorAll('.star-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const val = parseInt(btn.dataset.value, 10);
+      updateStarDisplay(val);
+    });
+  });
+
+  // Initialize star rating display
+  updateStarDisplay(currentRating);
 
   form.querySelector('#book-title').addEventListener('input', updateDraft);
   form.querySelector('#book-author').addEventListener('input', updateDraft);
@@ -332,7 +373,7 @@ function renderWrite() {
     }
 
     try {
-      const result = saveBookReview({ title, author, readingDate, content });
+      const result = saveBookReview({ title, author, rating: currentRating, readingDate, content });
       clearDraft();
       showToast('독후감이 저장되었습니다.');
       // Navigate to the book's reading page
@@ -418,9 +459,17 @@ function renderDetail() {
 
     const card = document.createElement('div');
     card.className = 'review-card';
+    const rating = rev.rating || 5;
+
     card.innerHTML = `
       <div class="review-card-header">
-        <span class="review-number-tag">독후감 ${reviewNumber}</span>
+        <div class="review-header-left">
+          <span class="review-number-tag">독후감 ${reviewNumber}</span>
+          <span class="review-stars-display" aria-label="별점 ${rating}점">
+            <span class="stars-gold">${'★'.repeat(rating)}</span><span class="stars-gray">${'★'.repeat(5 - rating)}</span>
+            <span class="rating-text">${rating}점</span>
+          </span>
+        </div>
         <span class="review-date">독서 날짜: ${escapeHtml(rev.readingDate)}</span>
       </div>
       <div class="review-body">${escapeHtml(rev.content)}</div>
@@ -461,12 +510,13 @@ function renderModal() {
     state.modal.reviews.forEach((rev, index) => {
       const reviewNumber = state.modal.reviews.length - index;
       const snippet = rev.content.replace(/\n/g, ' ').substring(0, 50);
+      const rating = rev.rating || 5;
 
       const item = document.createElement('div');
       item.className = 'modal-select-item';
       item.innerHTML = `
         <div class="select-item-top">
-          <span class="select-item-num">독후감 ${reviewNumber}</span>
+          <span class="select-item-num">독후감 ${reviewNumber} <span style="color: #F5A623; font-size: 0.85rem;">★ ${rating}점</span></span>
           <span class="select-item-date">${escapeHtml(rev.readingDate)}</span>
         </div>
         <div class="select-item-snippet">${escapeHtml(snippet || '(내용 없음)')}</div>

@@ -90,10 +90,11 @@ export function findExistingBook(title, author) {
  * appends review to the existing book and updates its updatedAt timestamp.
  * If new, creates a new book record.
  */
-export function saveBookReview({ title, author, readingDate, content }) {
+export function saveBookReview({ title, author, rating = 5, readingDate, content }) {
   const cleanTitle = normalizeText(title);
   const cleanAuthor = normalizeText(author);
   const cleanContent = content ? content.trim() : '';
+  const parsedRating = Math.max(1, Math.min(5, parseInt(rating, 10) || 5));
   const now = getMonotonicIsoString();
 
   if (!cleanTitle || !cleanAuthor || !cleanContent) {
@@ -125,6 +126,7 @@ export function saveBookReview({ title, author, readingDate, content }) {
   const newReview = {
     id: generateId('rev'),
     bookId: targetBook.id,
+    rating: parsedRating,
     readingDate: readingDate || now.split('T')[0],
     content: cleanContent,
     createdAt: now
@@ -193,7 +195,7 @@ export function getDraft() {
 
 export function saveDraft(draft) {
   try {
-    if (!draft || (!draft.title && !draft.author && !draft.content)) {
+    if (!draft || (!draft.title && !draft.author && !draft.content && !draft.rating)) {
       clearDraft();
     } else {
       localStorage.setItem(STORAGE_KEYS.DRAFT, JSON.stringify(draft));
